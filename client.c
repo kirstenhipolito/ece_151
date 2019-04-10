@@ -15,12 +15,12 @@ struct header{
 	uint8_t type;
 	uint8_t seqnum;
 	uint16_t checksum;
-}
+};
 
 struct segment{
 	struct header segheader;
 	char *segdata;
-}
+};
 
 int main(int argc, char* argv[]) {
 	if (argc < 5) {
@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
 
 	serveraddr.sin_family = AF_INET;
 	serveraddr.sin_port = htons(portnum);
-	serveraddr.sin_addr.s_addr = INADDR_ANY;
+	serveraddr.sin_addr.s_addr = inet_addr(argv[1]);
 
 	socketfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (socketfd < 0){
@@ -54,8 +54,6 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	//long unsigned int lenline = 0;
-	int numread = 0, totnum = 0;
 	char filebuff[64];
 
 	memset(filebuff, 0, 64);
@@ -67,22 +65,8 @@ int main(int argc, char* argv[]) {
 			MSG_CONFIRM, (const struct sockaddr *) &serveraddr,
 				sizeof(serveraddr));
 		printf("Message sent.\n");
-		//strcat(buffer, filebuff);
-		//totnum = totnum + numread;
+
 	}
-	// if(fgets(filebuff, 64, (FILE*)fp) == NULL){
-	// 	perror("File get string failure");
-	// 	exit(EXIT_FAILURE);
-	// }
-
-	//strcat(buffer, filebuff);
-	//filebuff[strlen(filebuff)-1] = 0;
-	//buffer[strlen(buffer) - 1] = 0;
-
-	//strcpy(buffer, "hello elder price!");
-
-	// int n, len;
-
 
 	// n = recvfrom(socketfd, (char *)buffer, MAXLINE,
 	// 			MSG_WAITALL, (struct sockaddr *) &serveraddr,

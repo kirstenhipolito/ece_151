@@ -15,12 +15,12 @@ struct header{
 	uint8_t type;
 	uint8_t seqnum;
 	uint16_t checksum;
-}
+};
 
 struct segment{
 	struct header segheader;
 	char *segdata;
-}
+};
 
 int main(int argc, char* argv[]) {
 	if (argc < 4) {

@@ -16,8 +16,8 @@ Still need to implement:
   
   To test:
   1. Have a savetothisfile.txt and sendthisfile.txt ready.
-  2. Run server:
+  2. Run server on one terminal:
     ./server (port number) (filename of savetothisfile.txt) (proto)
-  3. Run client:
+  3. Run client on another terminal:
     ./client (IP address e.g. 127.0.0.1 for same machine) (port number) (filename of sendthisfile.txt) (proto)
     

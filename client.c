@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <time.h>
 #include "ece151_mp1.h"
 
 #define MAXLINE 1024
@@ -45,21 +46,21 @@ int main(int argc, char* argv[]) {
 
 	//seed randomizer
 	srand(57);
-	
+
 	//initialize segsend segment
 	struct segment *segsend;
 	segsend = malloc(sizeof(const struct segment));
 	segsend->head.seqnum = rand() % 1000;
-
-	//send SYN to server
-	segment_populate(segsend, 0b001, (segsend->head.seqnum)++);
-	sendto(socketfd, (const struct segment*)segsend, sizeof(const struct segment), MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
 
 	//initialize segrecv segment
 	int lenrecvd = 0, lenserveraddr;
 	struct segment *segrecv;
 	segrecv = malloc(sizeof(const struct segment));
 	memset(segrecv, 0, sizeof(const struct segment));
+
+	//send SYN to server
+	segment_populate(segsend, 0b001, (segsend->head.seqnum)++);
+	sendto(socketfd, (const struct segment*)segsend, sizeof(const struct segment), MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
 
 	//wait for SYNACK to be sent
 	while((segrecv->head.type) != (0b010)){

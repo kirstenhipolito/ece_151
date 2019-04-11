@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <time.h>
 #include "ece151_mp1.h"
 
 #define MAXLINE 1024
@@ -53,22 +54,21 @@ int main(int argc, char* argv[]) {
 	segrecv = malloc(sizeof(const struct segment));
 	memset(segrecv, 0, sizeof(const struct segment));
 
-	//wait for SYN to be sent
-	while((segrecv->head.type) != (0b001)){
-		lenrecvd = recvfrom(socketfd, (const struct segment*)segrecv, sizeof(const struct segment),MSG_WAITALL, ( struct sockaddr *) &clientaddr, &lenclientaddr);
-	}
-	
-	printf("Type: %d, Seqnum: %d\n", segrecv->head.type, segrecv->head.seqnum);
-	printf("Data: %s\n", segrecv->data);
-
 	//initialize segsend segment
 	struct segment *segsend;
 	segsend = malloc(sizeof(const struct segment));
 	segsend->head.seqnum = rand() % 1000;
 
-	//send SYNACK
-	segment_populate(segsend, 0b010, (segsend->head.seqnum)++);
+	//wait for SYN to be sent
+	while((segrecv->head.type) != (0b001)){
+		lenrecvd = recvfrom(socketfd, (const struct segment*)segrecv, sizeof(const struct segment),MSG_WAITALL, ( struct sockaddr *) &clientaddr, &lenclientaddr);
+	}
+
+	printf("Type: %d, Seqnum: %d\n", segrecv->head.type, segrecv->head.seqnum);
+
 	//send SYNACK to client
+	usleep(50);
+	segment_populate(segsend, 0b010, (segsend->head.seqnum)++);
 	sendto(socketfd, (const struct segment*)segsend, sizeof(const struct segment), MSG_CONFIRM, (const struct sockaddr *) &clientaddr, sizeof(clientaddr));
 
 	//initialize file to save to

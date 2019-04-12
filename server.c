@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
 
 	//instantiate necessary variables and buffers
 	int socketfd;
-	char *data, *sendbuffer, *recvbuffer;
+	char *sendbuffer, *recvbuffer;
 	struct sockaddr_in serveraddr, clientaddr;
 	memset(&serveraddr, 0, sizeof(serveraddr));
 	memset(&clientaddr, 0, sizeof(clientaddr));
@@ -63,6 +63,8 @@ int main(int argc, char* argv[]) {
 	memset(segrecv, 0, sizeof(struct segment));
 	recvbuffer = malloc(BUFFERSIZE);
 
+	//printf("Size seg: %ld, %ld, %ld, %ld, %ld, %ld\n", sizeof(segrecv->head.type), sizeof(segrecv->head.seqnum), sizeof(segrecv->head.checksum), sizeof(segrecv->data), sizeof(segrecv->segsize), sizeof(*segrecv));
+
 	//wait for SYN to be sent
 	while((segrecv->head.type) != (SYN)){
 		if((lenrecvd = recvfrom(socketfd, (char*)recvbuffer, BUFFERSIZE, MSG_WAITALL, (struct sockaddr *) &clientaddr, &lenclientaddr)) == -1){
@@ -70,14 +72,19 @@ int main(int argc, char* argv[]) {
 			exit(EXIT_FAILURE);
 		}
 		segrecv = string_to_segment(segrecv, recvbuffer, lenrecvd);
-		//printf("Segment: %d, %d, %d, %s\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data);
+		//printf("Segment: %d, %d, %d, %s, %d\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data, segrecv->segsize);
+		if(segment_checksum(segrecv) != segrecv->head.checksum){
+			printf("Packet checksum failed.\n");
+			memset(segrecv, 0, sizeof(*segrecv));
+			continue;
+		}
 	}
 	printf("Got SYN packet.\n");
 
 	//send SYNACK to client
 	segsend = segment_populate(segsend, SYNACK, (segsend->head.seqnum)++, NULL);
 	sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
-	//printf("Segment: %d, %d, %d, %s\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data);
+	//printf("Segment: %d, %d, %d, %s, %d\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data, segsend->segsize);
 	if((sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &clientaddr, lenclientaddr)) == -1){
 		perror("Sendto() error");
 		exit(EXIT_FAILURE);
@@ -85,23 +92,44 @@ int main(int argc, char* argv[]) {
 	printf("Sent SYNACK packet.\n");
 
 	//initialize file to save to
-	// FILE *fp;
-	//
-	// //continue receiving while FIN has not been sent
-	// while((segrecv->head.type) != (0b110)) {
-	// 	lenrecvd = recvfrom(socketfd, (char *)recvbuffer, sizeof(struct segment) + DATALENGTH,
-	// 				MSG_WAITALL, ( struct sockaddr *) &clientaddr,
-	// 				&lenclientaddr);
-	// 	recvbuffer[lenrecvd] = '\0';
-	// 	printf("Client : %s\n", recvbuffer);
-	//
-	// 	if((fp = fopen(argv[2], "a")) == NULL){
-	// 		perror("File open failure");
-	// 		exit(EXIT_FAILURE);
-	// 	}
-	// 	fputs(recvbuffer, fp);
-	// 	fclose(fp);
-	// }
+	FILE *fp;
+	if((fp = fopen(argv[2], "w")) == NULL){
+		perror("File open failure");
+		exit(EXIT_FAILURE);
+	}
+	
+	//receive file, continue receiving while FIN has not been sent
+	while((segrecv->head.type) != FIN) {
+		if((lenrecvd = recvfrom(socketfd, (char*)recvbuffer, BUFFERSIZE, MSG_WAITALL, (struct sockaddr *) &clientaddr, &lenclientaddr)) == -1){
+			perror("Recvfrom() error");
+			exit(EXIT_FAILURE);
+		}
+		segrecv = string_to_segment(segrecv, recvbuffer, lenrecvd);
+		//printf("Segment: %d, %d, %d, %s, %d\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data, segrecv->segsize);
+		if(segment_checksum(segrecv) != segrecv->head.checksum){
+			printf("Packet checksum failed.\n");
+			memset(segrecv, 0, sizeof(*segrecv));
+			continue;
+		}
+	
+		//if packet data is not NULL, append to file and send an ACK
+		if(segrecv->segsize > sizeof(*segrecv)){
+			fputs(segrecv->data, fp);
+			
+			//send ACK to client
+			segsend = segment_populate(segsend, ACK, (segsend->head.seqnum)++, NULL);
+			sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
+			//printf("Segment: %d, %d, %d, %s\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data);
+			if((sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &clientaddr, lenclientaddr)) == -1){
+				perror("Sendto() error");
+				exit(EXIT_FAILURE);
+			}
+			//printf("Sent ACK\n");
+			
+		}
+	}
+	
+	fclose(fp);
 
 	//wait for FIN to be sent
 	while((segrecv->head.type) != (FIN)){
@@ -124,13 +152,13 @@ int main(int argc, char* argv[]) {
 	}
 	printf("Sent FINACK packet.\n");
 
+
 	free(segsend->data);
 	free(segsend);
 	free(sendbuffer);
 	free(segrecv->data);
 	free(segrecv);
 	free(recvbuffer);
-	free(data);
 	close(socketfd);
 
 	return 0;

@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 
 	//instantiate necessary variables and buffers
 	int socketfd;
-	char *data, *sendbuffer, *recvbuffer;
+	char *sendbuffer, *recvbuffer;
 	struct sockaddr_in serveraddr;
 	memset(&serveraddr, 0, sizeof(serveraddr));
 
@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
 
 	//send SYN to server
 	segsend = segment_populate(segsend, SYN, (segsend->head.seqnum)++, NULL);	//populate segment to be sent as a SYN segment
-	//printf("Segment: %d, %d, %d, %s\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data);
+	//printf("Segment: %d, %d, %d, %s, %d\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data, segsend->segsize);
 	sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
 	sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
 	printf("Sent SYN packet.\n");
@@ -75,28 +75,53 @@ int main(int argc, char* argv[]) {
 			exit(EXIT_FAILURE);
 		}
 		segrecv = string_to_segment(segrecv, recvbuffer, lenrecvd);
-		//printf("Segment: %d, %d, %d, %s\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data);
+		//printf("Segment: %d, %d, %d, %s, %d\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data, segrecv->segsize);
+		if(segment_checksum(segrecv) != segrecv->head.checksum){
+			printf("Packet checksum failed.\n");
+			memset(segrecv, 0, sizeof(*segrecv));
+			continue;
+		}
 	}
 	printf("Got SYNACK packet.\n");
 
 	//get file to send to server
-	// FILE *fp;
-	// if((fp = fopen(argv[3], "r")) == NULL){
-	// 	perror("File open failure");
-	// 	exit(EXIT_FAILURE);
-	// }
-	//
-	// char filebuff[64];
-	// memset(filebuff, 0, 64);
-	//
-	// while (fgets(filebuff, 64, (FILE*)fp) != NULL){
-	// 	filebuff[strlen(filebuff)] = 0;
-	// 	printf("%s\n", filebuff);
-	// 	sendto(socketfd, (const char *)filebuff, strlen(filebuff),
-	// 		MSG_CONFIRM, (const struct sockaddr *) &serveraddr,
-	// 			sizeof(serveraddr));
-	// 	printf("Message sent.\n");
-	// }
+	FILE *fp;
+	if((fp = fopen(argv[3], "r")) == NULL){
+		perror("File open failure");
+		exit(EXIT_FAILURE);
+	}
+
+	char filebuff[DATALENGTH];
+	memset(filebuff, 0, DATALENGTH);
+	
+	while (fgets(filebuff, DATALENGTH, (FILE*)fp) != NULL){
+		filebuff[strlen(filebuff)] = 0;
+		//printf("From file: %s\n", filebuff);
+		//send DATA to server
+		segsend = segment_populate(segsend, DATA, (segsend->head.seqnum)++, filebuff);	//populate segment to be sent as a SYN segment
+		//printf("Segment: %d, %d, %d, %s, %d\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data, segsend->segsize);
+		sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
+		sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
+		//printf("Sent DATA packet.\n");
+		memset(filebuff, 0, DATALENGTH);
+		
+		//wait for ACK to be sent
+		while((segrecv->head.type) != (ACK)) {
+			if((lenrecvd = recvfrom(socketfd, (char*)recvbuffer, BUFFERSIZE, MSG_WAITALL, ( struct sockaddr *) &serveraddr, &lenserveraddr)) == -1){
+				perror("Recvfrom() error");
+				exit(EXIT_FAILURE);
+			}
+			segrecv = string_to_segment(segrecv, recvbuffer, lenrecvd);
+			//printf("Segment: %d, %d, %d, %s, %d\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data, segrecv->segsize);
+			if(segment_checksum(segrecv) != segrecv->head.checksum){
+				printf("Packet checksum failed.\n");
+				memset(segrecv, 0, sizeof(*segrecv));
+				continue;
+			}
+		}
+		//printf("Got ACK\n");
+		
+	}
 
 	//send FIN to server
 	segsend = segment_populate(segsend, FIN, (segsend->head.seqnum)++, NULL);	//populate segment to be sent as a SYN segment
@@ -122,7 +147,6 @@ int main(int argc, char* argv[]) {
 	free(segrecv->data);
 	free(segrecv);
 	free(recvbuffer);
-	free(data);
 	//fclose(fp);
 	close(socketfd);
 

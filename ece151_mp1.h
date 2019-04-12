@@ -13,12 +13,12 @@
 #define BUFFERSIZE 256
 
 #define SYN 0b001
-#define SYNACK 0b001
-#define ACK 0b001
-#define DATA 0b001
-#define RST 0b001
-#define FIN 0b001
-#define FINACK 0b001
+#define SYNACK 0b010
+#define ACK 0b011
+#define DATA 0b100
+#define RST 0b101
+#define FIN 0b110
+#define FINACK 0b111
 
 //uint16_t segment_checksum(struct segment *seg);
 //void segment_populate(struct segment *seg, uint8_t headtype, uint8_t headseq);

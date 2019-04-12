@@ -29,15 +29,6 @@ struct header{
 	uint8_t seqnum;
 	uint16_t checksum;
 };
-/*	Segment Header Type Guide
-*	001 - SYN
-*	010 - SYNACK
-*	011 - ACK
-*	100 - DATA
-*	101 - RST
-*	110 - FIN
-*	111 - FINACK
-*/
 
 //data structure for a segment
 struct segment{

@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 	segsend = malloc(sizeof(struct segment));
 	memset(segsend, 0, sizeof(struct segment));
 	sendbuffer = malloc(BUFFERSIZE);
-	segsend->head.seqnum = rand() % 8;	//set a random sequence number below 8 (capacity of header seqnum)
+	segsend->head.seqnum = rand() % 256;	//set a random sequence number below 256 (capacity of header seqnum)
 
 	//initialize segrecv segment (allocate memory and initialize to 0)
 	int lenrecvd = 0;
@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
 
 	//send SYN to server
 	segsend = segment_populate(segsend, SYN, (segsend->head.seqnum)++, NULL);	//populate segment to be sent as a SYN segment
-	//printf("Segment: %d, %d, %d, %s, %d\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data, segsend->segsize);
+	printf("SYN Segment: %d, %d, %d, %s, %d\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data, segsend->segsize);
 	sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
 	sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
 	printf("Sent SYN packet.\n");
@@ -82,6 +82,8 @@ int main(int argc, char* argv[]) {
 			continue;
 		}
 	}
+	memset(segrecv, 0, sizeof(*segrecv));
+	
 	printf("Got SYNACK packet.\n");
 
 	//get file to send to server
@@ -94,12 +96,14 @@ int main(int argc, char* argv[]) {
 	char filebuff[DATALENGTH];
 	memset(filebuff, 0, DATALENGTH);
 	
+	uint8_t seqnuminc = rand()%256;
+	
 	while (fgets(filebuff, DATALENGTH, (FILE*)fp) != NULL){
 		filebuff[strlen(filebuff)] = 0;
 		//printf("From file: %s\n", filebuff);
 		//send DATA to server
-		segsend = segment_populate(segsend, DATA, (segsend->head.seqnum)++, filebuff);	//populate segment to be sent as a SYN segment
-		//printf("Segment: %d, %d, %d, %s, %d\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data, segsend->segsize);
+		segsend = segment_populate(segsend, DATA, seqnuminc, filebuff);	//populate segment to be sent as a DATA segment
+		printf("Send DATA Segment: %d, %d, %d, %s, %d\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data, segsend->segsize);
 		sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
 		sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
 		//printf("Sent DATA packet.\n");
@@ -112,14 +116,16 @@ int main(int argc, char* argv[]) {
 				exit(EXIT_FAILURE);
 			}
 			segrecv = string_to_segment(segrecv, recvbuffer, lenrecvd);
-			//printf("Segment: %d, %d, %d, %s, %d\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data, segrecv->segsize);
+			printf("Recv ACK Segment: %d, %d, %d, %s, %d\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data, segrecv->segsize);
 			if(segment_checksum(segrecv) != segrecv->head.checksum){
 				printf("Packet checksum failed.\n");
 				memset(segrecv, 0, sizeof(*segrecv));
 				continue;
 			}
 		}
+		memset(segrecv, 0, sizeof(*segrecv));
 		//printf("Got ACK\n");
+		seqnuminc++;
 		
 	}
 

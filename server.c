@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
 	segsend = malloc(sizeof(struct segment));
 	memset(segsend, 0, sizeof(struct segment));
 	sendbuffer = malloc(BUFFERSIZE);
-	segsend->head.seqnum = rand() % 8;	//set a random sequence number below 8 (capacity of header seqnum)
+	segsend->head.seqnum = rand() % 256;	//set a random sequence number below 256 (capacity of header seqnum)
 
 	//initialize segrecv segment (allocate memory and initialize to 0)
 	int lenrecvd = 0;
@@ -62,9 +62,7 @@ int main(int argc, char* argv[]) {
 	segrecv = malloc(sizeof(struct segment));
 	memset(segrecv, 0, sizeof(struct segment));
 	recvbuffer = malloc(BUFFERSIZE);
-
-	//printf("Size seg: %ld, %ld, %ld, %ld, %ld, %ld\n", sizeof(segrecv->head.type), sizeof(segrecv->head.seqnum), sizeof(segrecv->head.checksum), sizeof(segrecv->data), sizeof(segrecv->segsize), sizeof(*segrecv));
-
+	
 	//wait for SYN to be sent
 	while((segrecv->head.type) != (SYN)){
 		if((lenrecvd = recvfrom(socketfd, (char*)recvbuffer, BUFFERSIZE, MSG_WAITALL, (struct sockaddr *) &clientaddr, &lenclientaddr)) == -1){
@@ -98,35 +96,42 @@ int main(int argc, char* argv[]) {
 		exit(EXIT_FAILURE);
 	}
 	
+	uint8_t seqnuminc = rand()%256;
+	
 	//receive file, continue receiving while FIN has not been sent
 	while((segrecv->head.type) != FIN) {
+		if((segrecv->segsize) - sizeof(*segrecv))	free(segrecv->data);
+		memset(segrecv, 0, sizeof(*segrecv));
 		if((lenrecvd = recvfrom(socketfd, (char*)recvbuffer, BUFFERSIZE, MSG_WAITALL, (struct sockaddr *) &clientaddr, &lenclientaddr)) == -1){
 			perror("Recvfrom() error");
 			exit(EXIT_FAILURE);
 		}
 		segrecv = string_to_segment(segrecv, recvbuffer, lenrecvd);
-		//printf("Segment: %d, %d, %d, %s, %d\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data, segrecv->segsize);
+		printf("RECV Segment: %d, %d, %d, %s, %d\n", segrecv->head.type, segrecv->head.seqnum, segrecv->head.checksum, segrecv->data, segrecv->segsize);
 		if(segment_checksum(segrecv) != segrecv->head.checksum){
 			printf("Packet checksum failed.\n");
 			memset(segrecv, 0, sizeof(*segrecv));
 			continue;
 		}
+		//printf("Got DATA packet\n");
 	
 		//if packet data is not NULL, append to file and send an ACK
 		if(segrecv->segsize > sizeof(*segrecv)){
 			fputs(segrecv->data, fp);
 			
 			//send ACK to client
-			segsend = segment_populate(segsend, ACK, (segsend->head.seqnum)++, NULL);
+			segsend = segment_populate(segsend, ACK, seqnuminc, NULL);
 			sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
-			//printf("Segment: %d, %d, %d, %s\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data);
+			printf("Sent ACK Segment: %d, %d, %d, %s\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data);
 			if((sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &clientaddr, lenclientaddr)) == -1){
 				perror("Sendto() error");
 				exit(EXIT_FAILURE);
 			}
 			//printf("Sent ACK\n");
-			
+			seqnuminc++;
 		}
+		
+		
 	}
 	
 	fclose(fp);

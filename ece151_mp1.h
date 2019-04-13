@@ -67,13 +67,13 @@ struct segment* segment_populate(struct segment *seg, uint8_t headtype, uint8_t 
 		seg->segsize = sizeof(*seg);
 	}
 	else if(data != NULL){
-		if((seg->data = (uint8_t *) realloc(seg->data, strlen(data))) == NULL){
+		if((seg->data = (uint8_t *) realloc(seg->data, DATALENGTH)) == NULL){
 			perror("Realloc failure");
 			exit(EXIT_FAILURE);
 		}
-		memset(seg->data, 0, strlen(data));
-		memcpy(seg->data, data, strlen(data));
-		seg->segsize = sizeof(*seg) + strlen(data);
+		memset(seg->data, 0, DATALENGTH);
+		memcpy(seg->data, data, DATALENGTH);
+		seg->segsize = sizeof(*seg) + DATALENGTH;
 	}
 
 	seg->head.checksum = segment_checksum(seg);

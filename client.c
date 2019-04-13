@@ -97,9 +97,19 @@ int main(int argc, char* argv[]) {
 	memset(filebuff, 0, DATALENGTH);
 	
 	uint8_t seqnuminc = rand()%256;
+	int i = 0;
+	char charbuff = 0;
 	
-	while (fgets(filebuff, DATALENGTH, (FILE*)fp) != NULL){
-		filebuff[strlen(filebuff)] = 0;
+	while (!(feof(fp))){
+		memset(filebuff, 0, DATALENGTH);
+		for (i = 0; i <DATALENGTH; i++){
+			charbuff = fgetc(fp);
+			if(feof(fp)){
+				filebuff[i]=0;
+				break;
+			}
+			filebuff[i] = charbuff;
+		}
 		//printf("From file: %s\n", filebuff);
 		//send DATA to server
 		segsend = segment_populate(segsend, DATA, seqnuminc, filebuff);	//populate segment to be sent as a DATA segment

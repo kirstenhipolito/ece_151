@@ -15,7 +15,7 @@
 #define DATALENGTH 64
 #define BUFFERSIZE 256
 #define TIMEOUT 1
-#define PSENDSUCCESS 0.6
+#define PSENDSUCCESS 0.9
 
 #define SYN 0b00000001
 #define SYNACK 0b00000011
@@ -29,7 +29,7 @@
 //void segment_populate(struct segment *seg, uint8_t headtype, uint8_t headseq);
 
 //data structure for header
-void sig_alrm(int unused) {
+void sig_alrm(int x) {
     return;
 }
 

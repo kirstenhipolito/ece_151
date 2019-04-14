@@ -22,6 +22,13 @@ int main(int argc, char* argv[]) {
         fprintf(stderr,"Usage: sender <dest_IP> <dest_port> <filename> <proto>\n");
         exit(1);
     }
+    
+	//get file to send to server
+	FILE *fp;
+	if((fp = fopen(argv[3], "r")) == NULL){
+		perror("File open failure\n");
+		exit(EXIT_FAILURE);
+	}
 
 	//get port number from input arguments
 	int portnum = 0;
@@ -54,6 +61,7 @@ int main(int argc, char* argv[]) {
 	memset(segsend, 0, sizeof(struct segment));
 	sendbuffer = malloc(BUFFERSIZE);
 	segsend->head.seqnum = rand() % 256;	//set a random sequence number below 256 (capacity of header seqnum)
+	uint8_t seqnuminc = segsend->head.seqnum;
 
 	//initialize segrecv segment (allocate memory and initialize to 0)
 	int lenrecvd = 0;
@@ -66,6 +74,7 @@ int main(int argc, char* argv[]) {
 	//initialize timeout alarm
 	signal(SIGALRM, sig_alrm);
 	siginterrupt(SIGALRM, 1);
+	int scount = 0;
 
 	//create SYN packet			
 	segsend = segment_populate(segsend, SYN, (segsend->head.seqnum)++, NULL);	//populate segment to be sent as a SYN segment
@@ -73,6 +82,10 @@ int main(int argc, char* argv[]) {
 	sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
 	
 	while((segrecv->head.type) != (SYNACK)) {
+		if (scount++ > 5){
+			printf("Packet sent 5 times without ACK. Terminating Connection...\n");
+			goto close;
+		}
 		perhaps_sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
 		printf("Sent SYN packet.\n");
 		
@@ -103,17 +116,11 @@ int main(int argc, char* argv[]) {
 	
 	printf("Got SYNACK packet.\n");
 
-	//get file to send to server
-	FILE *fp;
-	if((fp = fopen(argv[3], "r")) == NULL){
-		perror("File open failure\n");
-		exit(EXIT_FAILURE);
-	}
-
+	// initiate file variables
 	char filebuff[DATALENGTH];
 	memset(filebuff, 0, DATALENGTH);
 	
-	uint8_t seqnuminc = rand()%256;
+	seqnuminc++;
 	int i = 0;
 	char charbuff = 0;
 	
@@ -134,8 +141,12 @@ int main(int argc, char* argv[]) {
 		//printf("Send DATA Segment: %d, %d, %d, %s, %d\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data, segsend->segsize);
 		sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
 		
-		
+		scount = 0;
 		while((segrecv->head.type) != (ACK)) {
+			if (scount++ > 5){
+				printf("Packet sent 5 times without ACK. Terminating Connection...\n");
+				goto close;
+			}
 			//send DATA to server
 			perhaps_sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
 			printf("Sent DATA packet %d.\n", segsend->head.seqnum);
@@ -171,7 +182,12 @@ int main(int argc, char* argv[]) {
 	//printf("Segment: %d, %d, %d, %s\n", segsend->head.type, segsend->head.seqnum, segsend->head.checksum, segsend->data);
 	sendbuffer = segment_to_string(sendbuffer, segsend);	//convert struct segment to string for sending through socket
 	
+	scount = 0;
 	while((segrecv->head.type) != (FINACK)) {
+		if (scount++ > 5){
+			printf("Packet sent 5 times without ACK. Terminating Connection...\n");
+			goto close;
+		}
 		//send FIN to server
 		sendto(socketfd, (char *) sendbuffer, segsend->segsize, MSG_CONFIRM, (const struct sockaddr *) &serveraddr, sizeof(serveraddr));
 		printf("Sent FIN packet.\n");
@@ -191,6 +207,7 @@ int main(int argc, char* argv[]) {
 	}
 	printf("Got FINACK packet.\n");
 
+	close:
 	free(segsend->data);
 	free(segsend);
 	free(sendbuffer);

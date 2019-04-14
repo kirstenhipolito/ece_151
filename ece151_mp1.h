@@ -8,9 +8,14 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <time.h>
+#include <signal.h>
+#include <errno.h>
 
 #define DATALENGTH 64
 #define BUFFERSIZE 256
+#define TIMEOUT 1
+#define PSENDSUCCESS 0.6
 
 #define SYN 0b00000001
 #define SYNACK 0b00000011
@@ -24,6 +29,10 @@
 //void segment_populate(struct segment *seg, uint8_t headtype, uint8_t headseq);
 
 //data structure for header
+void sig_alrm(int unused) {
+    return;
+}
+
 struct header{
 	uint8_t type;
 	uint8_t seqnum;
@@ -68,7 +77,7 @@ struct segment* segment_populate(struct segment *seg, uint8_t headtype, uint8_t 
 	}
 	else if(data != NULL){
 		if((seg->data = (uint8_t *) realloc(seg->data, DATALENGTH)) == NULL){
-			perror("Realloc failure");
+			perror("Realloc failure\n");
 			exit(EXIT_FAILURE);
 		}
 		memset(seg->data, 0, DATALENGTH);
@@ -84,7 +93,7 @@ struct segment* segment_populate(struct segment *seg, uint8_t headtype, uint8_t 
 //function for converting a struct segment to a string that can be passed to sendto
 char* segment_to_string(char *buff, const struct segment *seg){
 	if((buff = (char *) realloc(buff, seg->segsize)) == NULL){
-		perror("Realloc failure");
+		perror("Realloc failure\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -109,7 +118,7 @@ struct segment* string_to_segment(struct segment *seg, const char *buff, int len
 	//printf("Func: %d, %d\n", seg->head.type, seg->head.seqnum);
 	if(lenrecv - sizeof(*seg) > 0){
 		if(((seg->data = (uint8_t *) realloc(seg->data, lenrecv - sizeof(*seg))) == NULL)){
-			perror("Realloc failure");
+			perror("Realloc failure\n");
 			exit(EXIT_FAILURE);
 		}
 		memset(seg->data, 0, lenrecv - sizeof(*seg));
@@ -120,4 +129,13 @@ struct segment* string_to_segment(struct segment *seg, const char *buff, int len
 	}
 
 	return seg;
+}
+
+int perhaps_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen){
+    int err = 0;
+    
+    if ((rand()%10000+1) < (PSENDSUCCESS*10000))
+        err = sendto(sockfd, buf, len, flags, dest_addr, addrlen);
+    
+    return err;
 }
